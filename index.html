@@ -10,29 +10,35 @@
     <title>Bandruf#1</title>
 
     <style>
-        body {
-            background: #000;
-            color: #ccc;
+        html, body {
+            width: 100%;
+            height: 100%;
             margin: 0;
             padding: 0;
+            background: #000;
             overflow: hidden;
         }
 
         canvas {
+            display: block;
             margin: 0;
             padding: 0;
             border: 0;
             image-rendering: optimizeSpeed;
             -webkit-interpolation-mode: nearest-neighbor;
+            width: 100vw !important;
+            height: 100vh !important;
         }
 
         div.gm4html5_div_class {
             margin: 0;
             padding: 0;
             border: 0;
+            width: 100%;
+            height: 100%;
         }
 
-        /* Force 100% fullscreen instead of 80% */
+        /* full-screen override for webkit fullscreen */
         :-webkit-full-screen,
         :-webkit-full-screen #canvas {
             width: 100vw !important;
@@ -45,26 +51,78 @@
     <div class="gm4html5_div_class" id="gm4html5_div_id">
         <img src="html5game/splash.png" id="GM4HTML5_loadingscreen" alt="Loading" style="display:none;"/>
 
-        <!-- Game canvas -->
+        <!-- The canvas the GameMaker runtime uses -->
         <canvas id="canvas">
             <p>Your browser doesn't support HTML5 canvas.</p>
         </canvas>
     </div>
 
+    <!-- GameMaker game file -->
+    <!-- keep this path as-is if your file is at html5game/RetroBowl.js -->
+    <script type="text/javascript" src="html5game/RetroBowl.js"></script>
+
+    <!-- Ensure GameMaker_Init runs as usual, then force runtime resize -->
     <script>
-        // Always set canvas to full screen
-        function resizeCanvas() {
-            const c = document.querySelector('#canvas');
-            c.width = window.innerWidth;
-            c.height = window.innerHeight;
+        // Helper: call the engine's _BV(width,height) if available
+        function forceGameMakerResize() {
+            try {
+                var w = window.innerWidth || document.documentElement.clientWidth || document.body.clientWidth;
+                var h = window.innerHeight || document.documentElement.clientHeight || document.body.clientHeight;
+
+                // _BV is present in your RetroBowl.js (it sets canvas + internal sizes)
+                if (typeof window._BV === 'function') {
+                    // Some builds export it as a named function, some as a global -BV, so check both:
+                    window._BV(w, h);
+                } else if (typeof _BV === 'function') {
+                    _BV(w, h);
+                } else { 
+                    // fallback: directly set canvas size (most builds also adapt)
+                    var c = document.getElementById('canvas');
+                    if (c) {
+                        c.width = w;
+                        c.height = h;
+                    }
+                }
+            } catch (e) {
+                console.warn("Resize shim failed:", e);
+            }
         }
 
-        window.addEventListener('resize', resizeCanvas);
-        resizeCanvas();
+        // Wait for GameMaker runtime to initialize, then force the resize.
+        // GameMaker_Init is called by the runtime; wrap it so we can call _BV after it runs.
+        (function() {
+            var origOnload = window.onload;
+            window.onload = function(evt) {
+                try {
+                    // if original onload exists, call it (this will call GameMaker_Init from the runtime)
+                    if (typeof origOnload === 'function') origOnload(evt);
+                } catch (e) {
+                    // ignore
+                }
+
+                // small delay helps when the runtime does additional async setup
+                setTimeout(function() {
+                    forceGameMakerResize();
+
+                    // Some builds need two calls (one immediate, one after a small timeout)
+                    setTimeout(forceGameMakerResize, 120);
+                }, 60);
+            };
+
+            // Also force resize on window size changes (mobile rotate / desktop resizing)
+            window.addEventListener('resize', function() {
+                // throttle a tiny bit
+                if (window._lastResizeTO) clearTimeout(window._lastResizeTO);
+                window._lastResizeTO = setTimeout(function() {
+                    forceGameMakerResize();
+                }, 50);
+            });
+        })();
     </script>
 
-    <!-- GameMaker game file -->
-    <script type="text/javascript" src="html5game/RetroBowl.js"></script>
-    <script>window.onload = GameMaker_Init;</script>
+    <!-- For older builds where the runtime uses window.onload = GameMaker_Init directly:
+         If your page still uses "window.onload = GameMaker_Init;" (the runtime sets it),
+         the wrapper above ensures the existing onload function is called and then we run our resize shim.
+    -->
 </body>
 </html>
