@@ -4613,3 +4613,110 @@ var _Z9=_Ns1();var __9=_Os1();if((_Lb3)&&(!_Ub3)){if((_SN1!=_Z9)||(_TN1!=__9)){_
 _MN1=canvas.width;_NN1=canvas.height;_PN1=canvas.offsetLeft;_QN1=_PN1+_MN1;_ON1=canvas.offsetTop;_RN1=_PN1+_NN1;_SN1=_MN1;_TN1=_NN1;_UN1=_Z9;_VN1=__9;_WN1=1;_XN1=1;_IG3()}}var _mP3=0;var _nP3=0;function _RO3(){if(_131){_131._EM1()}var _Nr3;if(_F01){_I01._Va1();_Nr3=_I01._J01()}else {_Nr3=_D01._E01();if(_Nr3<=0){_Nr3=1;_D01._tE3(1)}}_iO3=Date.now();if(_iO3>=_fO3+1000){if(_iO3-_jO3<2000){_1Z2=_gO3;_rn._Pz1=_1Z2}_gO3=0;_fO3=_iO3}_gO3++;var _oP3=_jO3+1000/_Nr3;var now=Date.now();var _9m2=_jO3+1000/_Nr3-now;
 if(_9m2<0)_9m2=0;_jO3=now+_9m2;if(_9m2>4){setTimeout(function(){if(window._uO3){window._uO3(_wO3)}else {}},_9m2)}else {if(window._uO3){window._uO3(_wO3)}else {window._pP3("yyRequestAnimationFrame","*")}}if(!_wZ2){_lP3();var _qP3=10;var _t22=false;while(!_t22){_t22=true;if(_D01===null){_ib3._bb1=_ib3._DG3=_ib3._jF3=_ib3._pM1=_MN1;_ib3._db1=_ib3._EG3=_ib3._kF3=_ib3._rM1=_NN1}else {_IG3()}_ln3();_kP3();_on3();switch(_VF1){case -1:break;;case _WF1:case _E13:return;case _C13:_fP3();_By1._aH3();_QO3();break;case _D13:_ae3();
 break;default :_dP3(_VF1);_t22=false;break }_qP3--;if(_qP3<=0)break }}if(_Ho1._ok&&_Ho1._ok._pk&&_Ho1._ok._rP3){_Ho1._ok._rP3()}}
+
+/* --- BEGIN PATCH: Force fullscreen stretch (added by assistant) --- */
+/* This shim provides a robust global _BV(width,height) function that forces
+   the GameMaker runtime's internal canvas and viewport variables to match
+   the actual window size, and sets up a resize listener to keep them in sync.
+   Inserted at end of file. */
+(function(){
+    try {
+        // safe guard: wait until runtime variables exist
+        function applyForcedResize(w,h){
+            try {
+                if(typeof canvas === 'undefined') return false;
+                // prefer integers
+                w = Math.max(1, Math.floor(w));
+                h = Math.max(1, Math.floor(h));
+                // set canvas pixel size
+                canvas.width = w;
+                canvas.height = h;
+                // update common internal vars (these names exist in this build)
+                try { _4u1 = w; } catch(e){}
+                try { _6u1 = h; } catch(e){}
+                try { _MN1 = canvas.width; } catch(e){}
+                try { _NN1 = canvas.height; } catch(e){}
+                // update offsets and rects if helper exists
+                try { _8b1(canvas,_9b1); } catch(e){}
+                try { _ON1 = _9b1.top; } catch(e){}
+                try { _PN1 = _9b1.left; } catch(e){}
+                try { _QN1 = _9b1.right; } catch(e){}
+                try { _RN1 = _9b1.bottom; } catch(e){}
+                try { _SN1 = _MN1; } catch(e){}
+                try { _TN1 = _NN1; } catch(e){}
+                try { _UN1 = w; } catch(e){}
+                try { _VN1 = h; } catch(e){}
+                // reset scale factors so the runtime uses full canvas for drawing
+                try { _WN1 = 1; } catch(e){}
+                try { _XN1 = 1; } catch(e){}
+                // call layout recalculation if available
+                if(typeof _IG3 === 'function') {
+                    try { _IG3(); } catch(e){}
+                }
+                // if there's a function to reposition canvas content, call it
+                if(typeof _JN1 === 'function') {
+                    try { _JN1(0,0); } catch(e){}
+                }
+                return true;
+            } catch(e) {
+                return false;
+            }
+        }
+
+        // Expose global _BV function (GameMaker sometimes calls this)
+        window._BV = function(w,h){
+            if(!applyForcedResize(w,h)){
+                // fallback: directly set canvas size if present
+                var c = document.getElementById ? document.getElementById('canvas') : null;
+                if(c){ c.width = w; c.height = h; }
+            }
+        };
+
+        // On load, run a double-resize to ensure runtime picks it up
+        function initPatch(){
+            try {
+                var w = window.innerWidth || document.documentElement.clientWidth || document.body.clientWidth;
+                var h = window.innerHeight || document.documentElement.clientHeight || document.body.clientHeight;
+                // call after a short delay to let GameMaker finish init
+                setTimeout(function(){ window._BV(w,h); setTimeout(function(){ window._BV(w,h); }, 120); }, 80);
+            } catch(e){}
+        }
+
+        if(document.readyState === 'complete' || document.readyState === 'interactive') {
+            initPatch();
+        } else {
+            window.addEventListener('load', initPatch);
+        }
+
+        // Keep in sync with window resizes (throttled)
+        var _resizeTO = null;
+        window.addEventListener('resize', function(){
+            if(_resizeTO) clearTimeout(_resizeTO);
+            _resizeTO = setTimeout(function(){
+                var w = window.innerWidth || document.documentElement.clientWidth || document.body.clientWidth;
+                var h = window.innerHeight || document.documentElement.clientHeight || document.body.clientHeight;
+                try { window._BV(w,h); } catch(e){}
+            }, 60);
+        });
+
+        // Additionally attempt to patch GameMaker_Init if it sets window.onload directly.
+        try {
+            if(typeof window.GameMaker_Init === 'function'){
+                var orig = window.GameMaker_Init;
+                window.GameMaker_Init = function(){
+                    var res = orig.apply(this, arguments);
+                    // force size after runtime init
+                    setTimeout(function(){
+                        var w = window.innerWidth || document.documentElement.clientWidth || document.body.clientWidth;
+                        var h = window.innerHeight || document.documentElement.clientHeight || document.body.clientHeight;
+                        try { window._BV(w,h); } catch(e){}
+                    }, 80);
+                    return res;
+                };
+            }
+        } catch(e){}
+    } catch(e){}
+})();
+ /* --- END PATCH --- */
+
+																																																																																				   
